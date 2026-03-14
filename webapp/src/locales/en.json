@@ -21,7 +21,8 @@
         "Console": "Console",
         "About": "About",
         "Logout": "Logout",
-        "Login": "Login"
+        "Login": "Login",
+        "SunSpecSettings": "SunSpec PV Simulator"
     },
     "base": {
         "Loading": "Loading...",
@@ -710,5 +711,20 @@
         "log_info": "(I) Info",
         "log_debug": "(D) Debug",
         "log_verbose": "(V) Verbose"
+    },
+    "sunspecadmin": {
+        "SunSpecSettings": "SunSpec PV Simulator Settings",
+        "SunSpecConfiguration": "SunSpec PV Simulator",
+        "EnableSunSpec": "Enable SunSpec PV Simulator",
+        "DeviceName": "Device Name",
+        "DeviceNameHint": "e.g. OpenDTU - HMS",
+        "EnablePowerLimit": "Enable Power Limiting",
+        "PowerLimitHint": "Power limit commands received via Modbus TCP (SunSpec Model 123) will be forwarded to the Hoymiles inverters. Compatible with Victron Venus OS power management.",
+        "ConnectionInfo": "Connection Info",
+        "Protocol": "Protocol",
+        "Port": "Port",
+        "UnitId": "Unit ID",
+        "Models": "SunSpec Models",
+        "ExperimentalHint": "⚠ This feature is experimental. Behavior may change in future versions."
     }
 }

@@ -21,7 +21,8 @@
         "Console": "Console",
         "About": "A propos",
         "Logout": "Déconnexion",
-        "Login": "Connexion"
+        "Login": "Connexion",
+        "SunSpecSettings": "Simulateur PV SunSpec"
     },
     "base": {
         "Loading": "Chargement...",
@@ -696,5 +697,20 @@
         "log_info": "(I) Info",
         "log_debug": "(D) Debug",
         "log_verbose": "(V) Verbose"
+    },
+    "sunspecadmin": {
+        "SunSpecSettings": "Paramètres du simulateur PV SunSpec",
+        "SunSpecConfiguration": "Simulateur PV SunSpec",
+        "EnableSunSpec": "Activer le simulateur PV SunSpec",
+        "DeviceName": "Nom de l'appareil",
+        "DeviceNameHint": "ex. OpenDTU - HMS",
+        "EnablePowerLimit": "Activer la limitation de puissance",
+        "PowerLimitHint": "Les commandes de limitation de puissance reçues via Modbus TCP (SunSpec modèle 123) seront transmises aux onduleurs Hoymiles. Compatible avec la gestion de puissance Victron Venus OS.",
+        "ConnectionInfo": "Informations de connexion",
+        "Protocol": "Protocole",
+        "Port": "Port",
+        "UnitId": "ID d'unité",
+        "Models": "Modèles SunSpec",
+        "ExperimentalHint": "⚠ Cette fonctionnalité est expérimentale. Le comportement peut changer dans les futures versions."
     }
 }

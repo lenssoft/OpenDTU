@@ -37,6 +37,8 @@
 #define DEV_MAX_MAPPING_NAME_STRLEN 63
 #define LOCALE_STRLEN 2
 
+#define SUNSPEC_MAX_DEVICE_NAME_STRLEN 31
+
 #define LOG_MODULE_COUNT 16
 #define LOG_MODULE_NAME_STRLEN 32
 
@@ -180,6 +182,12 @@ struct CONFIG_T {
             int8_t Level;
         } Modules[LOG_MODULE_COUNT];
     } Logging;
+
+    struct {
+        bool Enabled;
+        char DeviceName[SUNSPEC_MAX_DEVICE_NAME_STRLEN + 1];
+        bool PowerLimitEnabled;
+    } SunSpec;
 };
 
 class ConfigurationClass {

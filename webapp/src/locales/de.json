@@ -21,7 +21,8 @@
         "Console": "Konsole",
         "About": "Über",
         "Logout": "Abmelden",
-        "Login": "Anmelden"
+        "Login": "Anmelden",
+        "SunSpecSettings": "SunSpec PV-Simulator"
     },
     "base": {
         "Loading": "Lade...",
@@ -709,5 +710,20 @@
         "log_info": "(I) Info",
         "log_debug": "(D) Debug",
         "log_verbose": "(V) Ausführlich"
+    },
+    "sunspecadmin": {
+        "SunSpecSettings": "SunSpec PV-Simulator Einstellungen",
+        "SunSpecConfiguration": "SunSpec PV-Simulator",
+        "EnableSunSpec": "SunSpec PV-Simulator aktivieren",
+        "DeviceName": "Gerätename",
+        "DeviceNameHint": "z.B. OpenDTU - HMS",
+        "EnablePowerLimit": "Leistungsbegrenzung aktivieren",
+        "PowerLimitHint": "Leistungsbegrenzungsbefehle über Modbus TCP (SunSpec Modell 123) werden an die Hoymiles-Wechselrichter weitergeleitet. Kompatibel mit Victron Venus OS Leistungsmanagement.",
+        "ConnectionInfo": "Verbindungsinfo",
+        "Protocol": "Protokoll",
+        "Port": "Port",
+        "UnitId": "Unit-ID",
+        "Models": "SunSpec-Modelle",
+        "ExperimentalHint": "⚠ Diese Funktion ist experimentell. Das Verhalten kann sich in zukünftigen Versionen ändern."
     }
 }

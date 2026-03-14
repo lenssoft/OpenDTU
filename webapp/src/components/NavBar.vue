@@ -54,6 +54,11 @@
                                 }}</router-link>
                             </li>
                             <li>
+                                <router-link @click="onClick" class="dropdown-item" to="/settings/sunspec">{{
+                                    $t('menu.SunSpecSettings')
+                                }}</router-link>
+                            </li>
+                            <li>
                                 <router-link @click="onClick" class="dropdown-item" to="/settings/inverter"
                                     >{{ $t('menu.InverterSettings') }}
                                 </router-link>

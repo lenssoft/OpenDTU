@@ -12,6 +12,7 @@ import MaintenanceRebootView from '@/views/MaintenanceRebootView.vue';
 import LoggingAdminView from '@/views/LoggingAdminView.vue';
 import MqttAdminView from '@/views/MqttAdminView.vue';
 import MqttInfoView from '@/views/MqttInfoView.vue';
+import SunspecAdminView from '@/views/SunspecAdminView.vue';
 import NetworkAdminView from '@/views/NetworkAdminView.vue';
 import NetworkInfoView from '@/views/NetworkInfoView.vue';
 import NtpAdminView from '@/views/NtpAdminView.vue';
@@ -91,6 +92,11 @@ const router = createRouter({
             path: '/settings/mqtt',
             name: 'MqTT Settings',
             component: MqttAdminView,
+        },
+        {
+            path: '/settings/sunspec',
+            name: 'SunSpec PV Simulator',
+            component: SunspecAdminView,
         },
         {
             path: '/settings/inverter',

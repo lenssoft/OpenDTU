@@ -168,6 +168,11 @@ bool ConfigurationClass::write()
         module["name"] = config.Logging.Modules[i].Name;
     }
 
+    JsonObject sunspec = doc["sunspec"].to<JsonObject>();
+    sunspec["enabled"] = config.SunSpec.Enabled;
+    sunspec["device_name"] = config.SunSpec.DeviceName;
+    sunspec["power_limit_enabled"] = config.SunSpec.PowerLimitEnabled;
+
     if (!Utils::checkJsonAlloc(doc, __FUNCTION__, __LINE__)) {
         return false;
     }
@@ -357,6 +362,11 @@ bool ConfigurationClass::read()
         strlcpy(config.Logging.Modules[i].Name, module["name"] | "", sizeof(config.Logging.Modules[i].Name));
         config.Logging.Modules[i].Level = module["level"] | ESP_LOG_VERBOSE;
     }
+
+    JsonObject sunspec = doc["sunspec"];
+    config.SunSpec.Enabled = sunspec["enabled"] | SUNSPEC_ENABLED;
+    strlcpy(config.SunSpec.DeviceName, sunspec["device_name"] | SUNSPEC_DEVICE_NAME, sizeof(config.SunSpec.DeviceName));
+    config.SunSpec.PowerLimitEnabled = sunspec["power_limit_enabled"] | SUNSPEC_POWER_LIMIT_ENABLED;
 
     f.close();
 

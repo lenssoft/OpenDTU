@@ -20,6 +20,7 @@
 #include "WebApi_power.h"
 #include "WebApi_prometheus.h"
 #include "WebApi_security.h"
+#include "WebApi_sunspec.h"
 #include "WebApi_sysstatus.h"
 #include "WebApi_webapp.h"
 #include "WebApi_ws_console.h"
@@ -66,6 +67,7 @@ private:
     WebApiPowerClass _webApiPower;
     WebApiPrometheusClass _webApiPrometheus;
     WebApiSecurityClass _webApiSecurity;
+    WebApiSunSpecClass _webApiSunSpec;
     WebApiSysstatusClass _webApiSysstatus;
     WebApiWebappClass _webApiWebapp;
     WebApiWsConsoleClass _webApiWsConsole;

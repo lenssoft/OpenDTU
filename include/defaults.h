@@ -112,4 +112,8 @@
 
 #define MAX_INVERTER_LIMIT 2250
 
+#define SUNSPEC_ENABLED false
+#define SUNSPEC_DEVICE_NAME "OpenDTU - HMS"
+#define SUNSPEC_POWER_LIMIT_ENABLED false
+
 #define LANG_PACK_SUFFIX ".lang.json"

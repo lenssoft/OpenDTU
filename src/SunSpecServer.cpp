@@ -16,6 +16,7 @@
  */
 
 #include "SunSpecServer.h"
+#include "Configuration.h"
 #include "Datastore.h"
 #include "MessageOutput.h"
 #include "NetworkSettings.h"
@@ -28,6 +29,18 @@
 static const char* TAG = "sunspec";
 
 SunSpecServerClass SunSpecServer;
+
+// ─── compile-time identity fallbacks ─────────────────────────────────────────
+
+#ifndef SUNSPEC_MANUFACTURER
+#define SUNSPEC_MANUFACTURER "Hoymiles"
+#endif
+#ifndef SUNSPEC_SERIAL
+#define SUNSPEC_SERIAL "HM-SIM-001"
+#endif
+#ifndef SUNSPEC_MAX_POWER_W
+#define SUNSPEC_MAX_POWER_W 1600.0f
+#endif
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -59,6 +72,13 @@ SunSpecServerClass::SunSpecServerClass()
 
 void SunSpecServerClass::init(Scheduler& scheduler)
 {
+    auto const& cfg = Configuration.get().SunSpec;
+
+    if (!cfg.Enabled) {
+        ESP_LOGI(TAG, "SunSpec PV simulator disabled — skipping init");
+        return;
+    }
+
     buildRegisters();
 
     // Start the TCP server once we have an IP address.
@@ -82,8 +102,9 @@ void SunSpecServerClass::init(Scheduler& scheduler)
     scheduler.addTask(_loopTask);
     _loopTask.enable();
 
-    ESP_LOGI(TAG, "SunSpec module initialised — %s %s [%s] %.0f W",
-        SUNSPEC_MANUFACTURER, SUNSPEC_MODEL, SUNSPEC_SERIAL, SUNSPEC_MAX_POWER_W);
+    ESP_LOGI(TAG, "SunSpec module initialised — %s [%s] %.0f W (power limit: %s)",
+        cfg.DeviceName, SUNSPEC_SERIAL, SUNSPEC_MAX_POWER_W,
+        cfg.PowerLimitEnabled ? "enabled" : "disabled");
 }
 
 void SunSpecServerClass::loop()
@@ -121,6 +142,14 @@ void SunSpecServerClass::buildRegisters()
         break; // use first reachable inverter for grid parameters
     }
 
+    // ── Apply active power limit ─────────────────────────────────────────────
+    // _powerLimitPct is 0-10000 (= 0.00-100.00%, SF=-2)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        float limitFraction = static_cast<float>(_powerLimitPct) / 10000.0f;
+        acPower *= limitFraction;
+    }
+
     // ── Derived values ──────────────────────────────────────────────────────
     float    acCurrent = (acVoltage > 0.0f) ? acPower / acVoltage  : 0.0f;
     float    dcPower   = acPower * 1.03f;   // ~3% loss estimate
@@ -134,6 +163,9 @@ void SunSpecServerClass::buildRegisters()
     static constexpr int SF_CURRENT = -2;  // A  → hundredths (198 = 1.98 A)
     static constexpr int SF_ENERGY  =  0;  // Wh → integer
     static constexpr int SF_FREQ    = -2;  // Hz → hundredths (5000 = 50.00 Hz)
+
+    // Device name from config
+    const char* deviceName = Configuration.get().SunSpec.DeviceName;
 
     // ── Build register image in a local buffer ──────────────────────────────
     uint16_t tmp[REG_COUNT];
@@ -162,9 +194,9 @@ void SunSpecServerClass::buildRegisters()
     w(cur + 0,  1);     // Model ID
     w(cur + 1, 65);     // Length (fixed by spec)
     wstr(cur +  2, SUNSPEC_MANUFACTURER, 16);
-    wstr(cur + 18, SUNSPEC_MODEL,        16);
-    wstr(cur + 34, "1.0.0",               8);   // version
-    wstr(cur + 42, "1.0.0",               8);   // SW version
+    wstr(cur + 18, deviceName,           16);  // Model = configurable device name
+    wstr(cur + 34, "1.0.0",               8);  // version
+    wstr(cur + 42, "1.0.0",               8);  // SW version
     wstr(cur + 50, SUNSPEC_SERIAL,       16);
     w(cur + 66, UNIT_ID);
     cur += 67;  // 2 (header) + 65 (data)
@@ -241,11 +273,15 @@ void SunSpecServerClass::buildRegisters()
     cur += 28;  // 2 (header) + 26 (data)
 
     // ── Model 123: Immediate Controls ───────────────────────────────────────
+    // cur = 149 here; WMaxLimPct at cur+3 → absolute reg REG_BASE+152
     w(cur + 0, 123);    // Model ID
     w(cur + 1,  24);    // Length
     w(cur + 2,   1);    // Conn = connected
-    w(cur + 3, 10000);  // WMaxLimPct = 100.00% (100 * 100)
-    w(cur + 4,   1);    // WMaxLimPct_Ena = enabled
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        w(cur + 3, _powerLimitPct);  // WMaxLimPct
+        w(cur + 4, 1);               // WMaxLimPct_Ena = enabled
+    }
     // +5..+25 → 0 (already zero)
     cur += 26;  // 2 (header) + 24 (data)
 
@@ -256,6 +292,23 @@ void SunSpecServerClass::buildRegisters()
     // ── Swap into live register buffer ──────────────────────────────────────
     std::lock_guard<std::mutex> lock(_mutex);
     memcpy(_regs, tmp, sizeof(tmp));
+}
+
+// ─── Apply power limit to Hoymiles inverters ──────────────────────────────────
+
+void SunSpecServerClass::applyPowerLimit(uint16_t limitPct)
+{
+    // limitPct is 0-10000 (SunSpec WMaxLimPct, SF=-2 → 0.00%-100.00%)
+    float pct = static_cast<float>(limitPct) / 100.0f; // convert to 0.00-100.00 %
+
+    for (uint8_t i = 0; i < Hoymiles.getNumInverters(); i++) {
+        auto inv = Hoymiles.getInverterByPos(i);
+        if (inv == nullptr) {
+            continue;
+        }
+        inv->sendActivePowerControlRequest(pct, PowerLimitControlType::RelativNonPersistent);
+        ESP_LOGI(TAG, "Power limit %.2f%% sent to inverter %s", pct, inv->serialString().c_str());
+    }
 }
 
 // ─── Modbus TCP connection handling ──────────────────────────────────────────
@@ -287,7 +340,7 @@ void SunSpecServerClass::_onNewClient(AsyncClient* client)
 
 void SunSpecServerClass::_onData(AsyncClient* client, const uint8_t* data, size_t len)
 {
-    // Minimum valid Modbus TCP read request:
+    // Minimum valid Modbus TCP request:
     //   MBAP header (6 B): TransID(2) + ProtoID(2) + Length(2)
     //   PDU        (6 B): UnitID(1) + FC(1) + StartAddr(2) + Quantity(2)
     if (len < 12) {
@@ -316,46 +369,104 @@ void SunSpecServerClass::_onData(AsyncClient* client, const uint8_t* data, size_
         client->write(reinterpret_cast<const char*>(resp), sizeof(resp));
     };
 
-    // Only FC 0x03 (Read Holding Registers) is needed for SunSpec
-    if (fc != 0x03) {
-        sendException(0x01); // Illegal Function
-        return;
-    }
-
     uint16_t startAddr = (static_cast<uint16_t>(data[8])  << 8) | data[9];
     uint16_t quantity  = (static_cast<uint16_t>(data[10]) << 8) | data[11];
 
-    if (quantity == 0 || quantity > 125
-        || startAddr < REG_BASE
-        || startAddr + quantity > REG_BASE + REG_COUNT)
-    {
-        sendException(0x02); // Illegal Data Address
+    // ── FC 0x03: Read Holding Registers ────────────────────────────────────
+    if (fc == 0x03) {
+        if (quantity == 0 || quantity > 125
+            || startAddr < REG_BASE
+            || startAddr + quantity > REG_BASE + REG_COUNT)
+        {
+            sendException(0x02); // Illegal Data Address
+            return;
+        }
+
+        // Response: MBAP(6) + UnitID(1) + FC(1) + ByteCount(1) + Data(quantity*2)
+        uint16_t byteCount = quantity * 2;
+        uint16_t mbapLen   = 3 + byteCount; // UnitID + FC + ByteCount + Data
+
+        // Stack buffer (max: 9 + 125*2 = 259 bytes)
+        uint8_t resp[9 + 125 * 2];
+        resp[0] = static_cast<uint8_t>(txId >> 8);
+        resp[1] = static_cast<uint8_t>(txId & 0xFF);
+        resp[2] = 0; resp[3] = 0;                                  // Protocol ID
+        resp[4] = static_cast<uint8_t>(mbapLen >> 8);
+        resp[5] = static_cast<uint8_t>(mbapLen & 0xFF);
+        resp[6] = unitId;
+        resp[7] = 0x03;
+        resp[8] = static_cast<uint8_t>(byteCount);
+
+        {
+            std::lock_guard<std::mutex> lock(_mutex);
+            uint16_t idx = startAddr - REG_BASE;
+            for (uint16_t i = 0; i < quantity; i++) {
+                resp[9 + i * 2]     = static_cast<uint8_t>(_regs[idx + i] >> 8);
+                resp[9 + i * 2 + 1] = static_cast<uint8_t>(_regs[idx + i] & 0xFF);
+            }
+        }
+
+        client->write(reinterpret_cast<const char*>(resp), 9 + byteCount);
         return;
     }
 
-    // Response: MBAP(6) + UnitID(1) + FC(1) + ByteCount(1) + Data(quantity*2)
-    uint16_t byteCount = quantity * 2;
-    uint16_t mbapLen   = 3 + byteCount; // UnitID + FC + ByteCount + Data
-
-    // Stack buffer (max: 9 + 125*2 = 259 bytes)
-    uint8_t resp[9 + 125 * 2];
-    resp[0] = static_cast<uint8_t>(txId >> 8);
-    resp[1] = static_cast<uint8_t>(txId & 0xFF);
-    resp[2] = 0; resp[3] = 0;                                  // Protocol ID
-    resp[4] = static_cast<uint8_t>(mbapLen >> 8);
-    resp[5] = static_cast<uint8_t>(mbapLen & 0xFF);
-    resp[6] = unitId;
-    resp[7] = 0x03;
-    resp[8] = static_cast<uint8_t>(byteCount);
-
-    {
-        std::lock_guard<std::mutex> lock(_mutex);
-        uint16_t idx = startAddr - REG_BASE;
-        for (uint16_t i = 0; i < quantity; i++) {
-            resp[9 + i * 2]     = static_cast<uint8_t>(_regs[idx + i] >> 8);
-            resp[9 + i * 2 + 1] = static_cast<uint8_t>(_regs[idx + i] & 0xFF);
+    // ── FC 0x10: Write Multiple Registers ──────────────────────────────────
+    // Victron uses this to send WMaxLimPct (power limit) to Model 123
+    if (fc == 0x10) {
+        // PDU for FC 0x10: StartAddr(2) + Quantity(2) + ByteCount(1) + Data(N*2)
+        if (len < 13) {
+            sendException(0x03); // Illegal Data Value
+            return;
         }
+        uint8_t byteCount = data[12];
+        if (len < static_cast<size_t>(13 + byteCount)
+            || byteCount != quantity * 2
+            || quantity == 0 || quantity > 125
+            || startAddr < REG_BASE
+            || startAddr + quantity > REG_BASE + REG_COUNT)
+        {
+            sendException(0x02); // Illegal Data Address
+            return;
+        }
+
+        // Write the registers into our buffer
+        {
+            std::lock_guard<std::mutex> lock(_mutex);
+            uint16_t idx = startAddr - REG_BASE;
+            for (uint16_t i = 0; i < quantity; i++) {
+                uint16_t val = (static_cast<uint16_t>(data[13 + i * 2]) << 8)
+                             |  static_cast<uint16_t>(data[13 + i * 2 + 1]);
+                _regs[idx + i] = val;
+
+                // Check if WMaxLimPct is being written
+                uint16_t absAddr = startAddr + i;
+                if (absAddr == REG_WMAXLIMPCT) {
+                    _powerLimitPct = val;
+                    ESP_LOGI(TAG, "WMaxLimPct written: %u (%.2f%%)", val, val / 100.0f);
+                }
+            }
+        }
+
+        // Apply power limit to Hoymiles inverters if feature is enabled
+        if (startAddr <= REG_WMAXLIMPCT && startAddr + quantity > REG_WMAXLIMPCT) {
+            if (Configuration.get().SunSpec.PowerLimitEnabled) {
+                applyPowerLimit(_powerLimitPct);
+            }
+        }
+
+        // Send FC 0x10 success response: MBAP(6) + UnitID(1) + FC(1) + StartAddr(2) + Quantity(2)
+        uint8_t resp[12] = {
+            static_cast<uint8_t>(txId >> 8), static_cast<uint8_t>(txId & 0xFF),
+            0, 0,  // Protocol ID
+            0, 6,  // Length: UnitID(1) + FC(1) + StartAddr(2) + Quantity(2)
+            unitId,
+            0x10,
+            static_cast<uint8_t>(startAddr >> 8), static_cast<uint8_t>(startAddr & 0xFF),
+            static_cast<uint8_t>(quantity >> 8),  static_cast<uint8_t>(quantity & 0xFF),
+        };
+        client->write(reinterpret_cast<const char*>(resp), sizeof(resp));
+        return;
     }
 
-    client->write(reinterpret_cast<const char*>(resp), 9 + byteCount);
+    sendException(0x01); // Illegal Function
 }
