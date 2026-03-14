@@ -21,6 +21,7 @@
 #include "RestartHelper.h"
 #include "Scheduler.h"
 #include "SunPosition.h"
+#include "SunSpecServer.h"
 #include "Utils.h"
 #include "WebApi.h"
 #include "defaults.h"
@@ -126,6 +127,11 @@ void setup()
     InverterSettings.init(scheduler);
 
     Datastore.init(scheduler);
+
+    // Initialize SunSpec Modbus TCP server (Victron PV inverter integration)
+    ESP_LOGI(TAG, "Initializing SunSpec server...");
+    SunSpecServer.init(scheduler);
+
     RestartHelper.init(scheduler);
 
     ESP_LOGI(TAG, "Startup complete");
